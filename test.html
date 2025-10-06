@@ -1,0 +1,32 @@
+<script>
+
+  const HF_TOKEN = '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';  // Replace with your actual token
+  
+async function query(data) {
+	const response = await fetch(
+		"https://router.huggingface.co/v1/chat/completions",
+		{
+			headers: {
+				Authorization: `Bearer ${HF_TOKEN}`,
+				"Content-Type": "application/json",
+			},
+			method: "POST",
+			body: JSON.stringify(data),
+		}
+	);
+	const result = await response.json();
+	return result;
+}
+
+query({ 
+    messages: [
+        {
+            role: "user",
+            content: "What is the capital of France?",
+        },
+    ],
+    model: "meta-llama/Llama-3.2-3B-Instruct:novita",
+}).then((response) => {
+    console.log(JSON.stringify(response));
+});
+</script>

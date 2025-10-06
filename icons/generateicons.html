@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Generate Icons (SVG → PNG)</title>
+</head>
+<body>
+  <canvas id="canvas" style="display:none"></canvas>
+
+  <script>
+    const sizes = [16, 32, 48, 128];
+
+    // Your SVG (with a proper SVG gradient)
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="16" fill="url(#grad)"/>
+  <text x="64" y="64" text-anchor="middle" dy=".35em" fill="white" font-size="48" font-weight="bold" font-family="Arial, sans-serif">AI</text>
+</svg>`.trim();
+
+    const canvas = document.getElementById('canvas');
+
+    // Convert SVG string to an Image
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(svgUrl);
+
+      sizes.forEach(size => {
+        // Use a fresh canvas per size to avoid race conditions with toBlob
+        const c = document.createElement('canvas');
+        const ctx = c.getContext('2d');
+        c.width = size;
+        c.height = size;
+
+        // High-quality rasterization
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Draw the SVG scaled to the target size
+        ctx.clearRect(0, 0, size, size);
+        ctx.drawImage(img, 0, 0, size, size);
+
+        // Download the PNG
+        const download = (href) => {
+          const a = document.createElement('a');
+          a.href = href;
+          a.download = `icon-${size}.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        };
+
+        if (c.toBlob) {
+          c.toBlob(blob => {
+            const href = URL.createObjectURL(blob);
+            download(href);
+            // Revoke URL after a brief delay to ensure the download starts
+            setTimeout(() => URL.revokeObjectURL(href), 1000);
+          }, 'image/png');
+        } else {
+          // Fallback for very old browsers
+          download(c.toDataURL('image/png'));
+        }
+      });
+    };
+
+    img.onerror = (e) => {
+      console.error('Failed to load SVG:', e);
+      alert('Could not load the SVG. Please ensure it is valid.');
+      URL.revokeObjectURL(svgUrl);
+    };
+
+    img.decoding = 'sync';
+    img.src = svgUrl;
+  </script>
+</body>
+</html>

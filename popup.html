@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h2>AI Form Filler</h2>
+    
+    <!-- Tab Container -->
+    <div class="tabs-container">
+      <div class="tabs-header" id="tabsHeader">
+        <button id="newTabBtn" class="new-tab-button" title="Create new empty tab">
+          <span>+ New Tab</span>
+        </button>
+      </div>
+      <div class="tabs-content" id="tabsContent"></div>
+    </div>
+    
+    <!-- Drop Area -->
+    <div class="drop-area" id="dropArea">
+      <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+      </svg>
+      <p>Drop text files here or click to upload</p>
+      <input type="file" id="fileInput" accept=".txt,.pdf,.doc,.docx" multiple hidden>
+    </div>
+    
+    <!-- AI Status -->
+    <div class="ai-status" id="aiStatus">
+      <span class="status-indicator"></span>
+      <span class="status-text">Checking AI availability...</span>
+      <button id="settingsBtn" class="settings-icon" title="HuggingFace Settings">⚙️</button>
+    </div>
+
+    <!-- HuggingFace Settings Panel -->
+    <div id="hfSettingsPanel" class="hf-settings-panel" style="display: none;">
+      <h3>HuggingFace Settings</h3>
+      <div class="form-group">
+        <label for="hfToken">API Token:</label>
+        <input type="password" id="hfToken" placeholder="hf_xxxxxxxxxxxx" />
+      </div>
+      <div class="form-group">
+        <label for="hfModel">Model (optional):</label>
+        <input type="text" id="hfModel" placeholder="meta-llama/Llama-3.2-3B-Instruct:novita" />
+      </div>
+      <button id="saveHFSettings" class="save-btn">Save Settings</button>
+      <div id="hfSaveStatus" class="save-status"></div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <button id="fillFormsBtn" class="primary-btn" disabled>
+        <span class="btn-icon">🤖</span>
+        FILL FORMS
+      </button>
+      <button id="clearBtn" class="secondary-btn">
+        <span class="btn-icon">🗑️</span>
+        Clear All
+      </button>
+    </div>
+    
+    <!-- Settings -->
+    <div class="settings">
+      <label class="checkbox-container">
+        <input type="checkbox" id="autoDetect" checked>
+        <span class="checkmark"></span>
+        Auto-detect form fields
+      </label>
+      <label class="checkbox-container">
+        <input type="checkbox" id="showLabels" checked>
+        <span class="checkmark"></span>
+        Show field labels
+      </label>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

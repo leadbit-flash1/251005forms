@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Customer & Career Application Form</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.6;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 750px;
+            margin: auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            font-weight: bold;
+            margin-bottom: 1em;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        h1 {
+            font-size: 2.2em;
+        }
+        h2 {
+            font-size: 1.5em;
+            margin-top: 2em;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        .required {
+            color: red;
+        }
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="url"],
+        input[type="number"],
+        input[type="date"],
+        input[type="file"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box; /* Ensures padding doesn't affect overall width */
+            font-size: 1em;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .col {
+            flex: 1;
+            min-width: 200px;
+        }
+        .sub-label {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 5px;
+            display: block;
+        }
+        .submit-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 30px;
+            transition: background-color 0.3s ease;
+        }
+        .submit-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>New Customer & Career Application Form</h1>
+        
+        <form action="/submit-form" method="post" enctype="multipart/form-data">
+            
+            <!-- ====================================================================== -->
+            <!--                 EXISTING CUSTOMER REGISTRATION FIELDS                    -->
+            <!-- ====================================================================== -->
+
+            <h2>Customer Details:</h2>
+
+            <div class="form-group">
+                <label for="fname">Full Name <span class="required">*</span></label>
+                <div class="row">
+                    <div class="col">
+                        <input type="text" id="fname" name="firstname" required>
+                        <span class="sub-label">First Name</span>
+                    </div>
+                    <div class="col">
+                        <input type="text" id="lname" name="lastname" required>
+                        <span class="sub-label">Last Name</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="address1">Address <span class="required">*</span></label>
+                <input type="text" id="address1" name="address1" required>
+                <span class="sub-label">Street Address</span>
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="address2" name="address2">
+                <span class="sub-label">Street Address Line 2</span>
+            </div>
+            
+            <div class="form-group row">
+                <div class="col">
+                    <input type="text" id="city" name="city" required>
+                    <span class="sub-label">City</span>
+                </div>
+                <div class="col">
+                    <input type="text" id="state" name="state" required>
+                    <span class="sub-label">State / Province</span>
+                </div>
+            </div>
+
+             <div class="form-group">
+                <input type="text" id="zip" name="zip" required>
+                <span class="sub-label">Postal / Zip Code</span>
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label for="phone">Phone Number <span class="required">*</span></label>
+                    <input type="tel" id="phone" name="phone" placeholder="(000) 000-0000" required>
+                </div>
+                <div class="col form-group">
+                    <label for="email">E-mail</label>
+                    <input type="email" id="email" name="email" placeholder="ex: email@yahoo.com">
+                    <span class="sub-label">example@example.com</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label for="source">How did you hear about us? <span class="required">*</span></label>
+                    <select id="source" name="source" required>
+                        <option value="" disabled selected>Please Select</option>
+                        <option value="search_engine">Search Engine</option>
+                        <option value="social_media">Social Media</option>
+                        <option value="recommendation">Friend/Family Recommendation</option>
+                        <option value="advertisement">Advertisement</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="col form-group">
+                     <label for="specify">Please Specify <span class="required">*</span></label>
+                     <input type="text" id="specify" name="specify" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="feedback">Feedback about us:</label>
+                <textarea id="feedback" name="feedback"></textarea>
+            </div>
+
+            <!-- ====================================================================== -->
+            <!--                      NEW CAREER APPLICATION FIELDS                       -->
+            <!-- ====================================================================== -->
+            
+            <h2>Application Details:</h2>
+
+            <div class="form-group">
+                <label for="position">Position Applying For <span class="required">*</span></label>
+                <select id="position" name="position" required>
+                    <option value="" disabled selected>Select a Position</option>
+                    <option value="cto">Chief Technology Officer (CTO)</option>
+                    <option value="producer">Producer / VP of Production</option>
+                    <option value="software_engineer">Software Engineer</option>
+                    <option value="game_designer">Game Designer</option>
+                    <option value="qa_tester">QA Tester</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="resume">Upload Resume/CV <span class="required">*</span></label>
+                <input type="file" id="resume" name="resume" accept=".pdf,.doc,.docx" required>
+                <span class="sub-label">Accepted formats: PDF, DOC, DOCX</span>
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label for="linkedin">LinkedIn Profile URL</label>
+                    <input type="url" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/username">
+                </div>
+                <div class="col form-group">
+                    <label for="portfolio">Portfolio / GitHub URL</label>
+                    <input type="url" id="portfolio" name="portfolio" placeholder="https://github.com/username">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label for="job_title">Current or Most Recent Job Title</label>
+                    <input type="text" id="job_title" name="job_title">
+                </div>
+                <div class="col form-group">
+                    <label for="company">Current or Most Recent Company</label>
+                    <input type="text" id="company" name="company">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="experience_years">Total Years of Relevant Experience</label>
+                <input type="number" id="experience_years" name="experience_years" min="0" max="50">
+            </div>
+
+            <div class="form-group">
+                <label for="skills">Key Skills & Technical Proficiencies</label>
+                <textarea id="skills" name="skills" placeholder="List your top skills, e.g., C++, Unity, Agile Methodology, Project Management..."></textarea>
+                <span class="sub-label">Please separate skills with a comma.</span>
+            </div>
+
+            <div class="form-group">
+                <label for="cover_letter">Cover Letter or Brief Introduction</label>
+                <textarea id="cover_letter" name="cover_letter" placeholder="Tell us why you're a great fit for this role..."></textarea>
+            </div>
+            
+            <div class="row">
+                <div class="col form-group">
+                    <label for="start_date">Available Start Date</label>
+                    <input type="date" id="start_date" name="start_date">
+                </div>
+                <div class="col form-group">
+                    <label for="work_authorization">Are you legally authorized to work in the EU?</label>
+                    <select id="work_authorization" name="work_authorization">
+                        <option value="" disabled selected>Please Select</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="sponsorship">No, I require sponsorship</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn">Submit Application</button>
+
+        </form>
+    </div>
+
+</body>
+</html>
