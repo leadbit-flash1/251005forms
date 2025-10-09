@@ -720,7 +720,7 @@ class FormAnalyzer {
         options: f.options
       }));
 
-      const prompt = `
+const prompt = `
 You are an intelligent form-filling assistant. Analyze the following fields and extract ONLY relevant values from the user context.
 
 IMPORTANT IDENTIFIERS:
@@ -742,11 +742,17 @@ Rules:
 - For phone: return a single phone number (e.g., "+0 000 000 0000"), if present in context.
 - For email: extract a valid email if present.
 - For address fields: address1/street, city, state/province, zip/postal.
+- For DATE fields (type="date"): 
+  * MUST return in format "YYYY-MM-DD" (e.g., "2024-01-15")
+  * If you see "2017-Present" or similar, return just the start year as "2017-01-01"
+  * If date is "Present" or "Current", use today's date
+  * Never return text like "Present" or date ranges for date inputs
 - For SELECT fields: choose only from "options" and return the option's "value" (not text).
 - Defaults:
   - "source" (how did you hear): prefer "search_engine" or "other" if unsure.
   - "specify": short relevant text if available, otherwise "N/A".
   - "work_authorization": if unsure, "yes".
+  - "start_date" or any date field: if context mentions a year like "2017", return "2017-01-01"
 - Skip file inputs — do NOT include them in output.
 - If no data for a field and no sensible default, omit it from the results.
 
@@ -1284,40 +1290,100 @@ Return JSON array only.
     this.updateOverlayPositions();
   }
 
-  fillField(element, value, isContentEditable) {
-    if (isContentEditable) {
-      element.textContent = value;
-    } else if (element.tagName === 'SELECT') {
-      // Handle SELECT elements specially
-      const options = Array.from(element.options);
-      const valueLower = String(value).toLowerCase().trim();
-      
-      // Try exact match first
-      let matchedOption = options.find(opt => 
-        opt.value.toLowerCase() === valueLower || opt.text.toLowerCase() === valueLower
-      );
-      
-      // If no exact match, try partial match
-      if (!matchedOption) {
-        matchedOption = options.find(opt => 
-          opt.value.toLowerCase().includes(valueLower) || 
-          opt.text.toLowerCase().includes(valueLower) ||
-          valueLower.includes(opt.value.toLowerCase()) ||
-          valueLower.includes(opt.text.toLowerCase())
-        );
-      }
-      
-      if (matchedOption) {
-        element.value = matchedOption.value;
-      } else {
-        console.warn(`Could not find matching option for "${value}" in select element`, element);
-      }
-    } else {
-      element.value = value;
-    }
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-  }
+	fillField(element, value, isContentEditable) {
+	  if (isContentEditable) {
+		element.textContent = value;
+	  } else if (element.tagName === 'SELECT') {
+		// Handle SELECT elements specially
+		const options = Array.from(element.options);
+		const valueLower = String(value).toLowerCase().trim();
+		
+		// Try exact match first
+		let matchedOption = options.find(opt => 
+		  opt.value.toLowerCase() === valueLower || opt.text.toLowerCase() === valueLower
+		);
+		
+		// If no exact match, try partial match
+		if (!matchedOption) {
+		  matchedOption = options.find(opt => 
+			opt.value.toLowerCase().includes(valueLower) || 
+			opt.text.toLowerCase().includes(valueLower) ||
+			valueLower.includes(opt.value.toLowerCase()) ||
+			valueLower.includes(opt.text.toLowerCase())
+		  );
+		}
+		
+		if (matchedOption) {
+		  element.value = matchedOption.value;
+		} else {
+		  console.warn(`Could not find matching option for "${value}" in select element`, element);
+		}
+	  } else if (element.type === 'date') {
+		// Special handling for date inputs
+		const dateValue = this.sanitizeDateValue(value);
+		if (dateValue) {
+		  element.value = dateValue;
+		} else {
+		  console.warn(`Invalid date format "${value}" for date input, skipping`);
+		  return; // Don't fill if date is invalid
+		}
+	  } else {
+		element.value = value;
+	  }
+	  element.dispatchEvent(new Event('input', { bubbles: true }));
+	  element.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
+	sanitizeDateValue(value) {
+	  if (!value) return null;
+	  
+	  // Check if already in correct format
+	  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	  }
+	  
+	  // Try to parse common date formats
+	  const dateStr = String(value).trim();
+	  
+	  // Handle "Present", "Current", "Now" etc.
+	  if (/^(present|current|now|today)$/i.test(dateStr)) {
+		const today = new Date();
+		return today.toISOString().split('T')[0];
+	  }
+	  
+	  // Handle year-only (e.g., "2017" -> "2017-01-01")
+	  if (/^\d{4}$/.test(dateStr)) {
+		return `${dateStr}-01-01`;
+	  }
+	  
+	  // Handle "YYYY-Present" or "YYYY-Current" patterns
+	  const yearMatch = dateStr.match(/^(\d{4})[-\s]*(present|current|now|today)?/i);
+	  if (yearMatch) {
+		return `${yearMatch[1]}-01-01`;
+	  }
+	  
+	  // Handle MM/DD/YYYY or DD/MM/YYYY
+	  const slashDate = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+	  if (slashDate) {
+		const month = slashDate[1].padStart(2, '0');
+		const day = slashDate[2].padStart(2, '0');
+		const year = slashDate[3];
+		// Assume MM/DD/YYYY format (US)
+		return `${year}-${month}-${day}`;
+	  }
+	  
+	  // Try to parse with Date constructor
+	  try {
+		const parsed = new Date(dateStr);
+		if (!isNaN(parsed.getTime())) {
+		  return parsed.toISOString().split('T')[0];
+		}
+	  } catch (e) {
+		// Invalid date
+	  }
+	  
+	  return null;
+	}
 
   clearField(element, isContentEditable) {
     if (isContentEditable) {

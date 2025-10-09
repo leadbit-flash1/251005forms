@@ -5,7 +5,7 @@
   let sidCounter = 0;
   
   // Hardcoded HuggingFace token (fallback)
-  const FALLBACK_HF_TOKEN = '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';
+  const FALLBACK_HF_TOKEN = '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';
 
   function reply(id, payload, error) {
     window.postMessage({ source: TAG, id, payload, error }, '*');
