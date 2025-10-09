@@ -1,16 +1,20 @@
+// injected.js - COMPLETE REPLACEMENT
 (() => {
   const TAG = 'AI_FORM_FILLER_BRIDGE';
   const sessions = new Map();
   let sidCounter = 0;
   
-  // Hardcoded HuggingFace token
-  const HF_TOKEN = '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';
+  // Hardcoded HuggingFace token (fallback)
+  const FALLBACK_HF_TOKEN = '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';
 
   function reply(id, payload, error) {
     window.postMessage({ source: TAG, id, payload, error }, '*');
   }
 
-  async function callHuggingFaceAPI(prompt, model = 'meta-llama/Llama-3.2-3B-Instruct:novita') {
+  async function callHuggingFaceAPI(prompt, model = 'meta-llama/Llama-3.2-3B-Instruct:novita', userToken = null) {
+    // Use provided token if available, otherwise use fallback
+    const token = userToken || FALLBACK_HF_TOKEN;
+    
     try {
       const data = {
         messages: [
@@ -28,7 +32,7 @@
         "https://router.huggingface.co/v1/chat/completions",
         {
           headers: {
-            Authorization: `Bearer ${HF_TOKEN}`,
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           method: "POST",
@@ -36,9 +40,15 @@
         }
       );
 
+      if (response.status === 401) {
+        // Alert user about bad token
+        alert(`HuggingFace API authentication failed. ${userToken ? 'Your provided token is invalid.' : 'The default token is invalid.'} Please check your API token in the extension settings.`);
+        throw new Error(`Authentication failed (401): Invalid API token`);
+      }
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('HF API Error:', errorText);
+        alert('HF API Error:', errorText);
         throw new Error(`HuggingFace API error: ${response.status} - ${errorText}`);
       }
 
@@ -61,11 +71,12 @@
   window.addEventListener('message', async (event) => {
     const msg = event.data;
     if (!msg || msg.target !== TAG || !msg.type) return;
-    const { id, type, data, hfModel } = msg;
+    const { id, type, data, hfToken, hfModel } = msg;
 
     try {
-      // Always use HuggingFace if token is available
-      const useHuggingFace = HF_TOKEN && HF_TOKEN.length > 0;
+      // Use provided token if available, otherwise fallback
+      const tokenToUse = hfToken || FALLBACK_HF_TOKEN;
+      const useHuggingFace = tokenToUse && tokenToUse.length > 0;
 
       if (type === 'CAPABILITIES') {
         if (useHuggingFace) {
@@ -88,6 +99,7 @@
           sessions.set(sessionId, {
             type: 'huggingface',
             model: hfModel || 'meta-llama/Llama-3.2-3B-Instruct:novita',
+            token: tokenToUse,
             options: data?.options || {}
           });
         } else if (window.ai && window.ai.languageModel) {
@@ -110,7 +122,7 @@
 
         let text;
         if (sessionData.type === 'huggingface') {
-          text = await callHuggingFaceAPI(prompt, sessionData.model);
+          text = await callHuggingFaceAPI(prompt, sessionData.model, sessionData.token);
         } else if (sessionData.type === 'chrome') {
           text = await sessionData.session.prompt(prompt);
         } else {
