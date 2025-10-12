@@ -44,3 +44,53 @@ async function checkAIAvailability() {
   }
   return 'no';
 }
+
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'callHuggingFace') {
+    // Make the actual API call from background script (not subject to CSP)
+    fetch("https://router.huggingface.co/v1/chat/completions", {
+      headers: {
+        Authorization: `Bearer ${request.token}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: request.prompt,
+          },
+        ],
+        model: request.model,
+        max_tokens: 1000,
+        temperature: 0.3
+      }),
+    })
+    .then(response => {
+      if (response.status === 401) {
+        throw new Error(`Authentication failed (401): Invalid API token`);
+      }
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error(`HuggingFace API error: ${response.status} - ${text}`);
+        });
+      }
+      return response.json();
+    })
+    .then(result => {
+      // Extract the actual message content from the chat completion response
+      if (result.choices && result.choices[0] && result.choices[0].message) {
+        sendResponse({ result: result.choices[0].message.content });
+      } else {
+        sendResponse({ result: JSON.stringify(result) });
+      }
+    })
+    .catch(error => {
+      console.error('HuggingFace API call failed:', error);
+      sendResponse({ error: error.message });
+    });
+    
+    return true; // Indicates async response
+  }
+});

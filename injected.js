@@ -1,8 +1,9 @@
-// injected.js - COMPLETE REPLACEMENT
 (() => {
   const TAG = 'AI_FORM_FILLER_BRIDGE';
   const sessions = new Map();
   let sidCounter = 0;
+  let hfCallCounter = 0;
+  const hfPending = new Map();
   
   // Hardcoded HuggingFace token (fallback)
   const FALLBACK_HF_TOKEN = 'hf'+'_'+'iFRcXDmvbdNFKUwvIKIamRRjWkpdXnxxhY';
@@ -11,62 +12,49 @@
     window.postMessage({ source: TAG, id, payload, error }, '*');
   }
 
+  // Route HuggingFace API calls through content script -> background
   async function callHuggingFaceAPI(prompt, model = 'meta-llama/Llama-3.2-3B-Instruct:novita', userToken = null) {
-    // Use provided token if available, otherwise use fallback
     const token = userToken || FALLBACK_HF_TOKEN;
+    const callId = `hf_${++hfCallCounter}`;
     
-    try {
-      const data = {
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
+    return new Promise((resolve, reject) => {
+      hfPending.set(callId, { resolve, reject });
+      
+      // Send request to content script
+      window.postMessage({
+        source: TAG,
+        type: 'HF_API_CALL',
+        id: callId,
+        prompt: prompt,
         model: model,
-        max_tokens: 1000,
-        temperature: 0.3
-      };
-
-      const response = await fetch(
-        "https://router.huggingface.co/v1/chat/completions",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-          body: JSON.stringify(data),
+        token: token
+      }, '*');
+      
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        if (hfPending.has(callId)) {
+          hfPending.delete(callId);
+          reject(new Error('HuggingFace API call timeout'));
         }
-      );
-
-      if (response.status === 401) {
-        // Alert user about bad token
-        alert(`HuggingFace API authentication failed. ${userToken ? 'Your provided token is invalid.' : 'The default token is invalid.'} Please check your API token in the extension settings.`);
-        throw new Error(`Authentication failed (401): Invalid API token`);
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        alert('HF API Error:', errorText);
-        throw new Error(`HuggingFace API error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('HF API Response:', result);
-      
-      // Extract the actual message content from the chat completion response
-      if (result.choices && result.choices[0] && result.choices[0].message) {
-        return result.choices[0].message.content;
-      }
-      
-      // Fallback to returning the full result if structure is unexpected
-      return JSON.stringify(result);
-    } catch (e) {
-      console.error('HuggingFace API call failed:', e);
-      throw new Error(`HuggingFace API call failed: ${e.message}`);
-    }
+      }, 30000);
+    });
   }
+
+  // Listen for HuggingFace API responses
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.source === 'AI_FORM_FILLER_BRIDGE_RESPONSE') {
+      const { id, result, error } = event.data;
+      const pending = hfPending.get(id);
+      if (pending) {
+        hfPending.delete(id);
+        if (error) {
+          pending.reject(new Error(error));
+        } else {
+          pending.resolve(result);
+        }
+      }
+    }
+  });
 
   window.addEventListener('message', async (event) => {
     const msg = event.data;

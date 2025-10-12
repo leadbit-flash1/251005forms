@@ -33,15 +33,55 @@ class AIBridge {
     this.injected = true;
   }
 
-  onMessage(event) {
-    const msg = event.data;
-    if (!msg || msg.source !== 'AI_FORM_FILLER_BRIDGE') return;
-    const p = this.pending.get(msg.id);
-    if (!p) return;
-    this.pending.delete(msg.id);
-    if (msg.error) p.reject(new Error(msg.error));
-    else p.resolve(msg.payload);
+async callHuggingFaceViaBackground(prompt, model, token) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      action: 'callHuggingFace',
+      prompt: prompt,
+      model: model,
+      token: token
+    }, response => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else if (response.error) {
+        reject(new Error(response.error));
+      } else {
+        resolve(response.result);
+      }
+    });
+  });
+}
+
+onMessage(event) {
+  const msg = event.data;
+  if (!msg || msg.source !== 'AI_FORM_FILLER_BRIDGE') return;
+  
+  // Handle HuggingFace API request from injected script
+  if (msg.type === 'HF_API_CALL') {
+    this.callHuggingFaceViaBackground(msg.prompt, msg.model, msg.token)
+      .then(result => {
+        window.postMessage({
+          source: 'AI_FORM_FILLER_BRIDGE_RESPONSE',
+          id: msg.id,
+          result: result
+        }, '*');
+      })
+      .catch(error => {
+        window.postMessage({
+          source: 'AI_FORM_FILLER_BRIDGE_RESPONSE',
+          id: msg.id,
+          error: error.message
+        }, '*');
+      });
+    return;
   }
+  
+  const p = this.pending.get(msg.id);
+  if (!p) return;
+  this.pending.delete(msg.id);
+  if (msg.error) p.reject(new Error(msg.error));
+  else p.resolve(msg.payload);
+}
 
   post(type, data, timeoutMs = 20000) {
     return new Promise((resolve, reject) => {
