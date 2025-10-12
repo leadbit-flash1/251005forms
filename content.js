@@ -152,39 +152,51 @@ class FormAnalyzer {
     this.init();
   }
 
-  init() {
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.action === 'ping') {
-        sendResponse({ status: 'ready' });
-        return true;
-      }
-
-      if (request.action === 'fillForms') {
-        this.processFormFilling(request.context, request.useAI);
-        sendResponse({ status: 'started' });
-        return true;
-      }
-
-      if (request.action === 'checkAI') {
-        this.checkAI().then((resp) => {
-          chrome.runtime.sendMessage({ action: 'aiStatus', payload: resp });
-        }).catch(e => {
-          console.error('AI check failed:', e);
-          chrome.runtime.sendMessage({ action: 'aiStatus', payload: { available: 'no' } });
-        });
-        sendResponse({ status: 'checking' });
-        return true;
-      }
-
-      if (request.action === 'updateHFToken') {
-        this.aiBridge.loadHFToken();
-        sendResponse({ status: 'updated' });
-        return true;
-      }
-
+init() {
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'ping') {
+      sendResponse({ status: 'ready' });
       return true;
-    });
-  }
+    }
+
+    if (request.action === 'fillForms') {
+      this.processFormFilling(request.context, request.useAI);
+      sendResponse({ status: 'started' });
+      return true;
+    }
+
+    if (request.action === 'extractFormData') {
+      // Handle extraction request from popup
+      const extractedData = this.extractFilledValues();
+      if (extractedData && extractedData.length > 0) {
+        const formattedData = this.formatExtractedData(extractedData);
+        sendResponse({ data: formattedData });
+      } else {
+        sendResponse({ data: null });
+      }
+      return true;
+    }
+
+    if (request.action === 'checkAI') {
+      this.checkAI().then((resp) => {
+        chrome.runtime.sendMessage({ action: 'aiStatus', payload: resp });
+      }).catch(e => {
+        console.error('AI check failed:', e);
+        chrome.runtime.sendMessage({ action: 'aiStatus', payload: { available: 'no' } });
+      });
+      sendResponse({ status: 'checking' });
+      return true;
+    }
+
+    if (request.action === 'updateHFToken') {
+      this.aiBridge.loadHFToken();
+      sendResponse({ status: 'updated' });
+      return true;
+    }
+
+    return true;
+  });
+}
 
   createLoadingOverlay() {
     const overlay = document.createElement('div');
@@ -754,7 +766,7 @@ class FormAnalyzer {
         label: f.label,
         placeholder: f.placeholder,
         nearbyText: f.nearbyText,
-        cssPath: f.cssPath,
+        //cssPath: f.cssPath,
         formIndex: f.formIndex,
         orderWithinForm: f.orderWithinForm,
         options: f.options
@@ -802,7 +814,9 @@ Return JSON array only.
       try {
         const res = await this.aiBridge.prompt(sessionId, prompt);
         const parsed = this.parseArrayFromText(res);
-
+      console.log(prompt)
+	  console.log(res)
+	  console.log(parsed);
         if (Array.isArray(parsed) && parsed.length > 0) {
           parsed.forEach(item => {
             const resolvedIdx = this.resolveFieldIndex(item, fieldsJson);
@@ -1229,82 +1243,197 @@ Return JSON array only.
     this.startOverlayTracking();
   }
 
-  startOverlayTracking() {
-    if (this.updateOverlayPositionsBound) return;
-    this.updateOverlayPositionsBound = this.updateOverlayPositions.bind(this);
-
-    // Capture scroll on any element (not just window) to reposition overlays
-    window.addEventListener('scroll', this.updateOverlayPositionsBound, true);
-    window.addEventListener('resize', this.updateOverlayPositionsBound);
-
-    try {
-      this.resizeObserver = new ResizeObserver(this.updateOverlayPositionsBound);
-      this.identifiedFields.forEach(f => {
-        if (f?.element) this.resizeObserver.observe(f.element);
-      });
-    } catch (e) {
-      // ResizeObserver not available; fallback only on scroll/resize
-    }
-
-    // Initial position
+startOverlayTracking() {
+  if (this.updateOverlayPositionsBound) return;
+  this.updateOverlayPositionsBound = this.updateOverlayPositions.bind(this);
+  
+  // Instant updates on scroll/resize (keep original behavior)
+  window.addEventListener('scroll', this.updateOverlayPositionsBound, true);
+  window.addEventListener('resize', this.updateOverlayPositionsBound);
+  
+  // Also check every 100ms for AJAX/dynamic changes
+  this.positionCheckInterval = setInterval(() => {
     this.updateOverlayPositions();
-  }
+  }, 100);
+  
+  // Initial position
+  this.updateOverlayPositions();
+}
 
-  stopOverlayTracking() {
-    if (this.updateOverlayPositionsBound) {
-      window.removeEventListener('scroll', this.updateOverlayPositionsBound, true);
-      window.removeEventListener('resize', this.updateOverlayPositionsBound);
-      this.updateOverlayPositionsBound = null;
-    }
-    if (this.resizeObserver) {
-      try { this.resizeObserver.disconnect(); } catch (_) {}
-      this.resizeObserver = null;
-    }
+stopOverlayTracking() {
+  if (this.updateOverlayPositionsBound) {
+    window.removeEventListener('scroll', this.updateOverlayPositionsBound, true);
+    window.removeEventListener('resize', this.updateOverlayPositionsBound);
+    this.updateOverlayPositionsBound = null;
   }
+  
+  if (this.positionCheckInterval) {
+    clearInterval(this.positionCheckInterval);
+    this.positionCheckInterval = null;
+  }
+}
 
-  updateOverlayPositions() {
-    this.fieldOverlays.forEach((overlay, i) => {
-      const field = this.identifiedFields[i];
-      if (!overlay || !field || !field.element || !document.contains(field.element)) {
-        if (overlay) overlay.style.display = 'none';
-        return;
+updateOverlayPositions() {
+  this.fieldOverlays.forEach((overlay, i) => {
+    const field = this.identifiedFields[i];
+    if (!overlay || !field || !field.element || !document.contains(field.element)) {
+      if (overlay) overlay.style.display = 'none';
+      return;
+    }
+    
+    const rect = field.element.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) {
+      overlay.style.display = 'none';
+      return;
+    }
+    
+    overlay.style.display = 'block';
+    overlay.style.top = `${rect.top + window.scrollY}px`;
+    overlay.style.left = `${rect.left + window.scrollX}px`;
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+  });
+}
+
+createActionPanel() {
+  const panel = document.createElement('div');
+  panel.className = 'ai-action-panel';
+  panel.style.cssText = `
+    position: fixed; bottom: 20px; right: 20px; background: white; border-radius: 8px;
+    padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10001;
+    font-family: sans-serif; min-width: 220px;
+  `;
+  panel.innerHTML = `
+    <div style="font-weight: bold; margin-bottom: 10px; color: #333; font-size: 14px;">
+      AI Form Fill Analysis
+    </div>
+    <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
+      Found and filled ${this.identifiedFields.filter(f=>f.included).length} of ${this.identifiedFields.length} fields.
+    </div>
+    <button id="aiClearAnalysis" style="
+      width: 100%; padding: 8px; background: #f5f5f5; color: #333;
+      border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
+    ">Clear and Close</button>
+  `;
+  document.body.appendChild(panel);
+  
+  document.getElementById('aiClearAnalysis').onclick = () => this.clearOverlays(true);
+}
+
+  extractFilledValues() {
+    const filledData = [];
+    
+    this.identifiedFields.forEach(field => {
+      if (field.included && field.element) {
+        let value = '';
+        let fieldName = '';
+        
+        // Get the actual current value from the element
+        if (field.isContentEditable) {
+          value = field.element.textContent.trim();
+        } else if (field.element.tagName === 'SELECT') {
+          const selectedOption = field.element.options[field.element.selectedIndex];
+          value = selectedOption ? selectedOption.text : field.element.value;
+        } else {
+          value = field.element.value;
+        }
+        
+        // Only include fields that have values
+        if (value) {
+          // Determine a readable field name
+          fieldName = field.label || field.element.name || field.element.id || field.type;
+          
+          // Clean up the field name
+          fieldName = fieldName
+            .replace(/[_-]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+          
+          // Add type info if field name is generic
+          if (!fieldName || fieldName.toLowerCase() === 'text') {
+            fieldName = field.type.charAt(0).toUpperCase() + field.type.slice(1);
+          }
+          
+          filledData.push({
+            name: fieldName,
+            value: value,
+            type: field.type
+          });
+        }
       }
-      const rect = field.element.getBoundingClientRect();
-      // Hide overlay for invisible fields
-      if (rect.width < 1 || rect.height < 1) {
-        overlay.style.display = 'none';
-        return;
-      }
-      overlay.style.display = 'block';
-      overlay.style.top = `${rect.top + window.scrollY}px`;
-      overlay.style.left = `${rect.left + window.scrollX}px`;
-      overlay.style.width = `${rect.width}px`;
-      overlay.style.height = `${rect.height}px`;
     });
+    
+    return filledData;
   }
 
-  createActionPanel() {
-    const panel = document.createElement('div');
-    panel.className = 'ai-action-panel';
-    panel.style.cssText = `
-      position: fixed; bottom: 20px; right: 20px; background: white; border-radius: 8px;
-      padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10001;
-      font-family: sans-serif; min-width: 220px;
-    `;
-    panel.innerHTML = `
-      <div style="font-weight: bold; margin-bottom: 10px; color: #333; font-size: 14px;">
-        AI Form Fill Analysis
-      </div>
-      <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
-        Found and filled ${this.identifiedFields.filter(f=>f.included).length} of ${this.identifiedFields.length} fields.
-      </div>
-      <button id="aiClearAnalysis" style="
-        width: 100%; padding: 8px; background: #f5f5f5; color: #333;
-        border: 1px solid #ddd; border-radius: 4px; cursor: pointer;
-      ">Clear and Close</button>
-    `;
-    document.body.appendChild(panel);
-    document.getElementById('aiClearAnalysis').onclick = () => this.clearOverlays(true);
+  formatExtractedData(data) {
+    // Format data in a readable way
+    let formatted='';/* = "=== EXTRACTED FORM DATA ===\n";
+    formatted += `Date: ${new Date().toLocaleString()}\n`;
+    formatted += `URL: ${window.location.href}\n`;
+    formatted += "=".repeat(30) + "\n\n";
+    */
+    // Group by categories if possible
+	/*
+    const categories = {
+      'Personal Information': ['firstName', 'lastName', 'name', 'fullName', 'email', 'phone'],
+      'Address': ['address', 'address2', 'city', 'state', 'zip'],
+      'Work Information': ['company', 'position', 'job_title', 'experience_years', 'work_authorization'],
+      'Other': []
+    };
+    
+    const categorized = {
+      'Personal Information': [],
+      'Address': [],
+      'Work Information': [],
+      'Other': []
+    };
+    
+    data.forEach(item => {
+      let placed = false;
+      for (const [category, types] of Object.entries(categories)) {
+        if (types.some(type => item.type.toLowerCase().includes(type.toLowerCase()))) {
+          categorized[category].push(item);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        categorized['Other'].push(item);
+      }
+    });
+    */
+    // Format each category
+    /*for (const [category, items] of Object.entries(categorized)) {
+      if (items.length > 0) {
+        formatted += `${category}:\n`;
+        formatted += "-".repeat(category.length + 1) + "\n";
+        items.forEach(item => {
+          formatted += `${item.name}: ${item.value}\n`;
+        });
+        formatted += "\n";
+      }
+    }*/
+    
+    // Also add a copy-paste friendly format at the bottom
+    //formatted += "\n" + "=".repeat(30) + "\n";
+    //formatted += "QUICK COPY FORMAT:\n";
+    formatted += "-".repeat(18) + "\n";
+    data.forEach(item => {
+      formatted += `${item.name}: ${item.value}\n`;
+    });
+    
+    return formatted;
+  }
+
+  sendExtractedDataToPopup(data) {
+    chrome.runtime.sendMessage({
+      action: 'extractedFormData',
+      data: data
+    });
   }
 
   toggleField(index) {
@@ -1451,6 +1580,5 @@ Return JSON array only.
     this.identifiedFields = [];
   }
 }
-
 // Initialize the integrated form analyzer
 new FormAnalyzer();
